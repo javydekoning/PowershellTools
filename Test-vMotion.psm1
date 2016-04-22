@@ -27,30 +27,51 @@ function Test-vMotion
     Param
     (
         # Param1 help description
-        [Parameter(Mandatory=$true,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,Position=0,ParameterSetName='Cluster')]
+        [Parameter(Mandatory=$false,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,Position=0,ParameterSetName='Cluster')]
         [ValidateNotNullOrEmpty()]
         [VMware.VimAutomation.ViCore.Impl.V1.Inventory.ClusterImpl]$Cluster,
 
         # Param2 help description
-        [Parameter(Mandatory=$false,ValueFromPipeline=$true,ParameterSetName='VM')]
+        [Parameter(Mandatory=$false,ValueFromPipeline=$true,ParameterSetName='virtualmachine')]
         [VMware.VimAutomation.ViCore.Impl.V1.Inventory.VirtualMachineImpl]$VM,
+
+        # Param2 help description
+        [Parameter(Mandatory=$false,ValueFromPipeline=$true,ParameterSetName='vmhost')]
+        [VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]$vmhost,
         
-        [Parameter()]
-        [switch]$PrintErrors
+        [Parameter(Mandatory=$false)]
+        [ValidateSet('warnings','warningsanderrors','errors','all')]
+        [string]$Print
     )
 
     Begin
     {
+      $connected = $defaultVIServer | ? {$_.isconnected} 
+      
+      if (!$connected) {
+        Write-Warning 'Not connected to vCenter, aborting'
+        break
+      }
+      
       $report = @()
       switch ($PsCmdlet.ParameterSetName) 
       { 
-        'VM' { 
+        'virtualmachine' { 
+          Write-Verbose 'setname virtualmachine'
           $vmObjectList  = $VM
+          Write-Verbose $vmObjectList
           $clusterObject = $vmObjectList | Get-Cluster
+          Write-Verbose $clusterObject
         } 
         'Cluster' { 
-          $clusterObject  = $Cluster
-          $vmObjectList = $clusterObject | Get-VM | Where-Object{$_.PowerState -eq 'PoweredON'}
+          Write-Verbose 'setname cluster'
+          $clusterObject = $Cluster
+          $vmObjectList  = $clusterObject | Get-VM | Where-Object{$_.PowerState -eq 'PoweredON'}
+        } 
+        'vmhost' { 
+          Write-Verbose 'setname vmhost'
+          $clusterObject = $vmhost | Get-Cluster
+          $vmObjectList  = $vmhost | Get-VM | Where-Object{$_.PowerState -eq 'PoweredON'}
         } 
       }
       $hostObjectList = $clusterObject | Get-VMHost | Where-Object{($_.ConnectionState -eq 'Connected') -and ($_.PowerState -eq 'PoweredOn')} 
@@ -81,31 +102,41 @@ function Test-vMotion
             
                   If($result[0].Error -ne $null)
                   {
-                      $prefix = 'Error: '   
+                      $prefix = 'Error'   
                   } 
                   ElseIf ($result[0].Warning -ne $null) 
                   {
-                      $prefix = 'Warning: '   
+                      $prefix = 'Warning'   
                       $warningTarget
                   } 
                   Else 
                   {
-                      $prefix = 'OK: '    
+                      $prefix = 'OK'    
                       $validTarget++
                   }
                   $detail = '{0}: moving {1} to {2}. {3}' -f $prefix, $vmObject.Name, $hostObject.Name, $errorObject.LocalizedMessage
                   
-                  if ($PrintErrors -and ($prefix -notmatch 'OK') )  {
-                    Write-Warning $detail
+                  switch ($print) {
+                    'warnings' {
+                      if ($prefix -match 'Warning') {Write-Warning $detail} 
+                    } 
+                    'errors' {
+                      if ($prefix -match 'Error') {Write-Warning $detail} 
+                    }
+                    'warningsanderrors' {
+                      if ($prefix -match '(Warning|Error)') {Write-Warning $detail} 
+                    }
+                    'all' {
+                      if ($prefix -match '(Warning|Error)') {Write-Warning $detail} 
+                      else {Write-Host -ForegroundColor Green $detail}  
+                    }
+                    default {}
                   }
                   
                   [system.array]$msg += '{0}: moving {1} to {2}. {3}' -f $prefix, $vmObject.Name, $hostObject.Name, $errorObject.LocalizedMessage
               }
           }
-    
-          $reportLine.validTarget   = $validTarget
-          $reportLine.warningTarget = $warningTarget
-    
+     
           If ($validTarget -gt 0) {
               $canMigrate = 'OK'
           } ElseIf ($warningTarget -gt 0) {
