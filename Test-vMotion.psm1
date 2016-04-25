@@ -1,43 +1,25 @@
-﻿<#
-.Synopsis
-   Short description
-.DESCRIPTION
-   Long description
-.EXAMPLE
-   Example of how to use this cmdlet
-.EXAMPLE
-   Another example of how to use this cmdlet
-.INPUTS
-   Inputs to this cmdlet (if any)
-.OUTPUTS
-   Output from this cmdlet (if any)
-.NOTES
-   General notes
-.COMPONENT
-   The component this cmdlet belongs to
-.ROLE
-   The role this cmdlet belongs to
-.FUNCTIONALITY
-   The functionality that best describes this cmdlet
-#>
-function Test-vMotion
+﻿function Test-vMotion
 {
     [CmdletBinding()]
     [OutputType([system.array])]
     Param
     (
         # Param1 help description
-        [Parameter(Mandatory=$false,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,Position=0,ParameterSetName='Cluster')]
+        [Parameter(Mandatory=$false,ParameterSetName='Cluster')]
         [ValidateNotNullOrEmpty()]
         [VMware.VimAutomation.ViCore.Impl.V1.Inventory.ClusterImpl]$Cluster,
 
         # Param2 help description
-        [Parameter(Mandatory=$false,ValueFromPipeline=$true,ParameterSetName='virtualmachine')]
+        [Parameter(Mandatory=$false,ParameterSetName='virtualmachine')]
         [VMware.VimAutomation.ViCore.Impl.V1.Inventory.VirtualMachineImpl]$VM,
 
         # Param2 help description
-        [Parameter(Mandatory=$false,ValueFromPipeline=$true,ParameterSetName='vmhost')]
+        [Parameter(Mandatory=$false,ParameterSetName='vmhost')]
         [VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]$vmhost,
+        
+        # Param2 help description
+        [Parameter(Mandatory=$false,ValueFromPipeline=$true,ParameterSetName='pipeline',Position=0)]
+        $pipeline,
         
         [Parameter(Mandatory=$false)]
         [ValidateSet('warnings','warningsanderrors','errors','all')]
@@ -46,6 +28,7 @@ function Test-vMotion
 
     Begin
     {
+      $PSBoundParameters
       $connected = $defaultVIServer | ? {$_.isconnected} 
       
       if (!$connected) {
@@ -72,6 +55,23 @@ function Test-vMotion
           Write-Verbose 'setname vmhost'
           $clusterObject = $vmhost | Get-Cluster
           $vmObjectList  = $vmhost | Get-VM | Where-Object{$_.PowerState -eq 'PoweredON'}
+        } 
+        'pipeline' { 
+          Write-Verbose 'setname pipeline'
+          switch ($pipeline[0].gettype().fullname) {
+            'VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl' {
+              $clusterObject = $pipeline | Get-Cluster
+              $vmObjectList  = $pipeline | Get-VM | Where-Object{$_.PowerState -eq 'PoweredON'}           
+            }
+            'VMware.VimAutomation.ViCore.Impl.V1.Inventory.ClusterImpl' {
+              $clusterObject = $pipeline 
+              $vmObjectList  = $pipeline | Get-VM | Where-Object{$_.PowerState -eq 'PoweredON'}
+            }
+            'VMware.VimAutomation.ViCore.Impl.V1.Inventory.VirtualMachineImpl' { 
+              $clusterObject = $pipeline | Get-Cluster
+              $vmObjectList  = $pipeline
+            }
+          }
         } 
       }
       $hostObjectList = $clusterObject | Get-VMHost | Where-Object{($_.ConnectionState -eq 'Connected') -and ($_.PowerState -eq 'PoweredOn')} 
