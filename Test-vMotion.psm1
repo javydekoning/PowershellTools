@@ -100,9 +100,9 @@
                   $hostMoRef   = $hostObject.ExtensionData.MoRef
                     
                   if ($si.length -gt 1) {
-                    $VmProvCheck = Get-View $si.Content.VmProvisioningChecker
-                  } else {
                     $VmProvCheck = Get-View $si.Content.VmProvisioningChecker -Server $VC
+                  } else {
+                    $VmProvCheck = Get-View $si.Content.VmProvisioningChecker
                   }
                   
 
