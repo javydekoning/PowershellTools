@@ -57,7 +57,7 @@
         } 
         'pipeline' { 
           Write-Verbose 'setname pipeline'
-          switch ($pipeline[0].gettype().fullname) {
+          switch ((,$pipeline)[0].gettype().fullname) {
             'VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl' {
               $clusterObject = $pipeline | Get-Cluster
               $vmObjectList  = $pipeline | Get-VM | Where-Object{$_.PowerState -eq 'PoweredON'}           
