@@ -157,5 +157,4 @@
       return $report
     }
 }
-Get-VM 'stapp105' | Test-vMotion -Verbose
-#Export-ModuleMember Test-*
+Export-ModuleMember Test-*
