@@ -4,21 +4,21 @@
     [OutputType([system.array])]
     Param
     (
-        # Param1 help description
-        [Parameter(Mandatory=$false,ParameterSetName='Cluster')]
+        #Param to test an entire cluster
+        [Parameter(Mandatory=$true,ParameterSetName='Cluster')]
         [ValidateNotNullOrEmpty()]
         [VMware.VimAutomation.ViCore.Impl.V1.Inventory.ClusterImpl]$Cluster,
 
-        # Param2 help description
-        [Parameter(Mandatory=$false,ParameterSetName='virtualmachine')]
+        #Param to test a VM
+        [Parameter(Mandatory=$true,ParameterSetName='virtualmachine')]
         [VMware.VimAutomation.ViCore.Impl.V1.Inventory.VirtualMachineImpl]$VM,
 
-        # Param2 help description
-        [Parameter(Mandatory=$false,ParameterSetName='vmhost')]
+        #Param to test VM's an a ESXi host
+        [Parameter(Mandatory=$true,ParameterSetName='vmhost')]
         [VMware.VimAutomation.ViCore.Impl.V1.Inventory.VMHostImpl]$vmhost,
         
-        # Param2 help description
-        [Parameter(Mandatory=$false,ValueFromPipeline=$true,ParameterSetName='pipeline',Position=0)]
+        #Pipeline parameter to accept pipeline input
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true,ParameterSetName='pipeline',Position=0)]
         $pipeline,
         
         [Parameter(Mandatory=$false)]
@@ -69,12 +69,21 @@
             'VMware.VimAutomation.ViCore.Impl.V1.Inventory.VirtualMachineImpl' { 
               $clusterObject = $pipeline | Get-Cluster
               $vmObjectList  = $pipeline
+            } 
+            default {
+                Write-Warning "Input object type was $((,$pipeline)[0].gettype().fullname), this function requires VMHostImpl,ClusterImpl or VirtualMachineImpl" 
+                break; 
             }
           }
         } 
       }
       $hostObjectList = $clusterObject | Get-VMHost | Where-Object{($_.ConnectionState -eq 'Connected') -and ($_.PowerState -eq 'PoweredOn')} 
+      
+      $si             = Get-View ServiceInstance
+      
       foreach($vmObject in $vmObjectList) {
+          $VC = $vmObject.uid.tostring() -replace '.*(@)(.*)(:).*', '$2'
+
           $verbmsg = 'Testing {0}' -f $vmObject.Name
           Write-Verbose $verbmsg
           
@@ -90,8 +99,12 @@
                   $vmMoRef     = $vmObject.ExtensionData.MoRef
                   $hostMoRef   = $hostObject.ExtensionData.MoRef
                     
-                  $si          = Get-View ServiceInstance -Server $VC
-                  $VmProvCheck = get-view $si.Content.VmProvisioningChecker -Server $VC
+                  if ($si.length -gt 1) {
+                    $VmProvCheck = Get-View $si.Content.VmProvisioningChecker
+                  } else {
+                    $VmProvCheck = Get-View $si.Content.VmProvisioningChecker -Server $VC
+                  }
+                  
 
                   $result      = $VmProvCheck.CheckMigrate( $vmMoRef, $hostMoRef, $pool, $null, $null )
             
@@ -139,7 +152,6 @@
           } Else {
               $canMigrate = 'Error'
           }
-
 
           $Obj = New-Object PSObject -Property @{            
               VM            = $vmObject.Name                 
