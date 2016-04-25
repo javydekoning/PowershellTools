@@ -26,9 +26,8 @@
         [string]$Print
     )
 
-    Begin
+    Process
     {
-      $PSBoundParameters
       $connected = $defaultVIServer | ? {$_.isconnected} 
       
       if (!$connected) {
@@ -75,10 +74,6 @@
         } 
       }
       $hostObjectList = $clusterObject | Get-VMHost | Where-Object{($_.ConnectionState -eq 'Connected') -and ($_.PowerState -eq 'PoweredOn')} 
-    }
-    
-    Process
-    {
       foreach($vmObject in $vmObjectList) {
           $verbmsg = 'Testing {0}' -f $vmObject.Name
           Write-Verbose $verbmsg
@@ -162,5 +157,5 @@
       return $report
     }
 }
-
-Export-ModuleMember Test-*
+Get-VM 'stapp105' | Test-vMotion -Verbose
+#Export-ModuleMember Test-*
