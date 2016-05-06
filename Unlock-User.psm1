@@ -18,7 +18,9 @@ function Unlock-User
   $User = [adsi]([adsisearcher]"samaccountname=$samaccountname").findone().path;
   if ($user) {
     $User.psbase.InvokeSet('IsAccountLocked',$false)
-    $User.SetInfo()  
+    if ($PSCmdlet.ShouldProcess($samaccountname,"Unlocking user account")) {
+	  $User.SetInfo()
+	}
   } else {
     Write-Warning "$samaccountname not found."
   }
