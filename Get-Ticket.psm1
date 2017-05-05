@@ -1,4 +1,4 @@
-﻿#requires -Version 3
+#requires -Version 3
 <#
     .Synopsis
     TicketSwapBot
@@ -29,7 +29,7 @@ Function Get-Ticket
       $webr = Invoke-WebRequest -Uri $url
       if ($webr.content -notmatch 'Robot') 
       {
-        if (($webr.content -notmatch 'Nog geen e-tickets aangeboden') -and ($webr.content -notmatch 'Aangeboden.*.small.0.tickets.small.')) 
+        if (($webr.content -notmatch 'Nog geen e-tickets aangeboden|Geen tickets aangeboden op dit moment')) 
         {
           $link = $webr.Links |
           Where-Object -FilterScript {
@@ -59,4 +59,3 @@ Function Get-Ticket
   {
   }
 }
-Export-ModuleMember Get-Ticket
