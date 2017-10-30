@@ -32,24 +32,35 @@
   Param
   (
       #Input folder
-      [Parameter(Mandatory=$true,HelpMessage='Input folder containing PDF files')]
-      [string]$Path,
+      [Parameter(Mandatory=$false,HelpMessage='Input folder containing PDF files')]
+      [string]$Path = (get-location),
 
-      [String]$Outputfile = (join-path -Path $home -ChildPath ("$(Get-Date -Format 'yyyyMMddhhmmss')" + 'joined.pdf'))
+      [Parameter(Mandatory=$false,HelpMessage='Destination pdf file')]
+      [String]$Outputfile = (join-path -Path (Get-Location) -ChildPath ("$(Get-Date -Format 'yyyyMMddhhmmss')" + '-merged.pdf'))
   )
 
   Begin
   {
-    Write-Verbose -Message 'Verifying if nuget package source is configured.'
-    if (-not (Get-PackageSource -Name nuget) ) {
-      Write-Verbose -Message 'NuGet is package source is not found, adding source.'
-      Register-PackageSource -Name nuget -Trusted -ProviderName nuget -Location 'https://www.nuget.org/api/v2'
+    function Test-Administrator  
+    {  
+        $user = [Security.Principal.WindowsIdentity]::GetCurrent();
+        (New-Object Security.Principal.WindowsPrincipal $user).IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)  
     }
-      
+
     Write-Verbose -Message 'Verifying if itextsharp package exists.'
-    if (-not (Get-Package -Name itextsharp) ) {
+    if (-not (Get-Package -Name itextsharp -ErrorAction SilentlyContinue) ) {
+      Write-Verbose -Message 'Verifying if nuget package source is configured.'
+      if (-not (Get-PackageSource -Name nuget -ErrorAction SilentlyContinue) ) {
+        if (Test-Administrator) {
+          Write-Verbose -Message 'NuGet package source is not found, adding source.'
+          $null = Register-PackageSource -Name nuget -Trusted -ProviderName nuget -Location 'https://www.nuget.org/api/v2'
+        } else {
+          throw 'NuGet package source is not installed. Run "Register-PackageSource -Name nuget -Trusted -ProviderName nuget -Location "https://www.nuget.org/api/v2" to resolve' 
+        }
+      }
+
       Write-Verbose -Message 'itextsharp not found, downloading NuGet package.'
-      Install-Package -name 'iTextSharp'
+      $null = Install-Package -name 'iTextSharp'
     }
 
     $Pack = Get-Package -name 'itextsharp'
@@ -57,6 +68,7 @@
     $dll  = join-path -Path $Pack -ChildPath 'lib\itextsharp.dll'
       
     try {  
+      Write-Verbose -Message "Loading $dll"
       Add-Type -Path $dll
     } catch {
       throw 'Error loading dll'
