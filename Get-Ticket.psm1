@@ -24,7 +24,11 @@ Function Get-Ticket
 
     #The interval in seconds, defaults to 2 seconds to prevent getting identified as a bot.     
     [Parameter(Position = 1)]
-    [int]$interval = 1000
+    [int]$interval = 1000,
+
+    #The interval in seconds, defaults to 2 seconds to prevent getting identified as a bot.     
+    [Parameter(Position = 1)]
+    [int]$maxprice = $null
   )    
 
   Begin
@@ -36,23 +40,36 @@ Function Get-Ticket
   {
     while (1) 
     {
+      #For verbose logging
+      $iteration = ($count).ToString('000000')
+      $time      = [string](get-date).ToString('HH:mm:ss')
+      
       Start-Sleep -Milliseconds $interval
       $webr = Invoke-WebRequest -Uri $url
       if ($webr.content -notmatch 'Robot') 
       {
         if (($webr.content -notmatch 'Nog geen e-tickets aangeboden|Geen tickets aangeboden op dit moment')) 
         {
-          $link = $webr.Links |
-          Where-Object -FilterScript {
-            $_.itemprop -match 'offerurl'
-          } |
-          Select-Object -First 1
-          Write-Warning -Message "Found ticket @ $($link.href)"
+          $price = ($webr.ParsedHtml.body.getElementsByTagName('div') | Where {$_.getAttributeNode('class').Value -eq 'listings-item--price'} | ? {$_.textContent -match '€'} | select -expand textContent -First 1 textContent) -replace '.*?(\d+).*','$1'
+
+          if ($null -eq $maxprice -or $price -le $maxprice) {
+            Write-Verbose "Current price is $price, which is lower than the configured maxprice of $maxprice, trying to buy ticket"
+
+            $link = $webr.Links |
+            Where-Object -FilterScript {
+              $_.itemprop -match 'offerurl'
+            } |
+            Select-Object -First 1
+            Write-Warning -Message "Found ticket @ $($link.href)"
           
-          [console]::beep(1000,500)
-          Start-Process $('https://www.ticketswap.nl'+$link.href)
+            [console]::beep(1000,500)
+            Start-Process $('https://www.ticketswap.nl'+$link.href)
           
-          break
+            break          
+          } else {
+            Write-Verbose "$iteration - $time - Current price is $price, which is higher than the configured maxprice of $maxprice, looping"
+          }
+
         }
         else
         {
@@ -76,3 +93,5 @@ Function Get-Ticket
   {
   }
 }
+
+Get-Ticket -url https://www.ticketswap.nl/event/a-state-of-trance-festival-utrecht/regular-ticket/65f49eac-dfe3-4322-89e9-d54f41b3edd8/417247 -Verbose -maxprice 40
